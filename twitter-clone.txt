@@ -1,0 +1,69 @@
+@startuml
+
+/'
+    builder => make tweets?
+    observer => notify tweets?
+    mediator => facilitate communication?
+    decorator => add user abilities (e.g., admin)?
+    iterator => enumerate tweets
+    singleton => manage access to mediator?
+'/
+
+struct ChangeEvent {
+    + String eventType
+    + Object oldValue
+    + Object newValue
+}
+
+interface ChangeEventListener {
+    + handleEvent(in event: ChangeEvent): void
+}
+
+interface Follower {
+    + follow(in handle: String): void
+    + unfollow(in handle: String): void
+    + getFollowing(): Iterator<Followable>
+}
+
+interface Followable {
+    + getHandle(): String
+    + getFollowers(): Iterator<Follower>
+}
+
+interface Media {
+    + getID(): int
+    + getWebDisplay(): String
+}
+
+interface MediaIterable {
+    + iterator(): Iterator<Media>
+}
+
+interface MediaContainer {
+    + addMedia(in media: Media): void
+    + removeMedia(in mediaID: int): void 
+}
+
+interface Post {
+    + addReply(in replyPost: Post): void
+    + boost(): void
+    + delete(): void
+}
+
+class Content {
+
+}
+
+class User {
+
+}
+
+class Tweet {
+    
+}
+
+class Topic {
+
+}
+
+@enduml
