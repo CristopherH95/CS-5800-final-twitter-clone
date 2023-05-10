@@ -9,14 +9,30 @@
     singleton => manage access to mediator?
 '/
 
-struct ChangeEvent {
+struct UpdateEvent {
     + String eventType
     + Object oldValue
     + Object newValue
 }
 
-interface ChangeEventListener {
-    + handleEvent(in event: ChangeEvent): void
+interface UpdateEventObserver {
+    + handleEvent(in event: UpdateEvent): void
+}
+
+interface UpdateEventDispatcher {
+    + notifyObservers(in event: UpdateEvent): void
+}
+
+interface Notifiable {
+    + getViewURI(): String
+}
+
+interface NotifiablesIterable {
+    + iterator(): Iterator<Notifiable>
+}
+
+interface NotifiablesFeed extends NotifiablesIterable {
+    + addToFeed(in item: Notifiable): void
 }
 
 interface Follower {
@@ -30,8 +46,23 @@ interface Followable {
     + getFollowers(): Iterator<Follower>
 }
 
+interface FollowMediator {
+    + follow(in from: String, in to: String): void
+    + unfollow(in from: String, in to: String): void
+}
+
+interface Blocker {
+    + block(in handle: String): void
+}
+
+interface BlockMediator {
+    + block(in from: String, in to: String): void
+}
+
 interface Media {
     + getID(): int
+    + getSource(): String
+    + setSource(in source: String): void
     + getWebDisplay(): String
 }
 
@@ -39,31 +70,95 @@ interface MediaIterable {
     + iterator(): Iterator<Media>
 }
 
-interface MediaContainer {
+interface MediaContainer extends Media, MediaIterable {
     + addMedia(in media: Media): void
     + removeMedia(in mediaID: int): void 
 }
 
-interface Post {
+interface Post extends MediaContainer, Notifiable {
+    + getMentioned(): Iterator<Followable>
     + addReply(in replyPost: Post): void
     + boost(): void
     + delete(): void
 }
 
-class Content {
+interface Poster {
+    + submitPost(in post: Post): void
+}
+
+interface PostMediator {
+    + post(in post: Post): void
+}
+
+class Text implements Media {
+    - String content
+}
+
+class Image implements Media {
+    - String fileServerURL
+}
+
+class Video implements Media {
+    - String fileServerURL
+}
+
+abstract class MediaFactory {
+    + makeMedia(in source: String): Media
+}
+
+class TextFactory extends MediaFactory {
 
 }
 
-class User {
+class ImageFactory extends MediaFactory {
 
 }
 
-class Tweet {
+class VideoFactory extends MediaFactory {
+
+}
+
+class User implements Follower, Followable, Poster, Blocker, UpdateEventObserver {
+    - tweetsReader: TweetsIterable
+}
+
+class Tweet implements Post {
     
 }
 
-class Topic {
+class TweetsIterable implements NotifiablesFeed {
 
 }
+
+class Topic implements Followable {
+
+}
+
+class BlockService implements BlockMediator {
+
+}
+
+class FollowService implements FollowMediator, UpdateEventDispatcher {
+
+}
+
+class PostService implements PostMediator, UpdateEventDispatcher {
+
+}
+
+UpdateEvent <.. UpdateEventObserver
+UpdateEvent <.. UpdateEventDispatcher
+Notifiable o-- NotifiablesIterable
+Followable o-- Follower
+Follower o-- Followable
+Media o-- MediaIterable
+Followable o-- Post
+Text <.. TextFactory
+Image <.. ImageFactory
+Video <.. VideoFactory
+Post <.. Poster
+Post <.. PostMediator
+TweetsIterable *-- User
+
 
 @enduml
