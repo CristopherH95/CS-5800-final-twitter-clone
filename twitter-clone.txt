@@ -1,31 +1,26 @@
 @startuml
 
-/'
-    builder => make tweets?
-    observer => notify tweets?
-    mediator => facilitate communication?
-    decorator => add user abilities (e.g., admin)?
-    iterator => enumerate tweets
-    singleton => manage access to mediator?
-    facade => server wrapping services (maybe add a request struct to go with)?
-'/
-
-struct UpdateEvent {
-    + String eventType
-    + Object oldValue
-    + Object newValue
+struct HTTPData {
+    + textData: String
+    + fileData: Iterable<File>
 }
 
-interface UpdateEventObserver {
-    + handleEvent(in event: UpdateEvent): void
+interface ServerEndpoint {
+    + isRequestValid(in request: HTTPData): boolean
+    + handleRequest(in request: HTTPData): HTTPData
 }
 
-interface UpdateEventDispatcher {
-    + notifyObservers(in event: UpdateEvent): void
+interface NotifiableObserver {
+    + handleEvent(in event: Notifiable): void
+}
+
+interface NotifiableDispatcher {
+    + notifyObservers(in event: Notifiable): void
 }
 
 interface Notifiable {
     + getViewURI(): String
+    + getShortView(): String
 }
 
 interface NotifiablesIterable {
@@ -50,16 +45,18 @@ interface Followable {
 }
 
 interface FollowMediator {
-    + follow(in from: String, in to: String): void
-    + unfollow(in from: String, in to: String): void
+    + follow(in from: Follower, in to: String): void
+    + unfollow(in from: Follower, in to: String): void
 }
 
 interface Blocker {
     + block(in handle: String): void
+    + unblock(in handle: String): void
 }
 
 interface BlockMediator {
-    + block(in from: String, in to: String): void
+    + block(in from: Blocker, in to: String): void
+    + unblock(in from: Blocker, in to: String): void
 }
 
 interface Media {
@@ -89,14 +86,20 @@ interface Likeable {
     + getLikesCount(): int
 }
 
+interface LikeMediator {
+    + like(in from: Liker, in toPostID: int): void
+    + unlike(in from: Liker, in toPostID: int): void
+}
+
 interface Post extends MediaContainer, Notifiable, Likeable {
+    + getPoster(): Followable
     + getMentioned(): Iterator<Followable>
     + addReply(in replyPost: Post): void
     + boost(): void
     + delete(): void
 }
 
-interface Poster {
+interface Poster extends Followable {
     + submitPost(in post: Post): void
 }
 
@@ -106,78 +109,209 @@ interface PostMediator {
 
 class Text implements Media {
     - String content
+    + getContent(): String
+    + setContent(in content: String): void
 }
 
 class Image implements Media {
     - String fileServerURL
+    + getFileURL(): String
+    + setFileURL(): String
 }
 
 class Video implements Media {
     - String fileServerURL
+    + getFileURL(): String
+    + setFileURL(): String
 }
 
 abstract class MediaFactory {
-    + makeMedia(in source: String): Media
+    + makeMedia(in source: String): Media {abstract}
 }
 
-class TextFactory extends MediaFactory {
+class TextFactory extends MediaFactory {}
 
-}
+class ImageFactory extends MediaFactory {}
 
-class ImageFactory extends MediaFactory {
+class VideoFactory extends MediaFactory {}
 
-}
-
-class VideoFactory extends MediaFactory {
-
-}
-
-class User implements Follower, Followable, Poster, Blocker, UpdateEventObserver, Liker {
-    - tweetsReader: TweetsIterable
+class User implements Follower, Poster, Blocker, NotifiableObserver, Liker {
+    - id: int
+    - handle: String
+    - name: String
+    - email: String
+    - contentFeed: ContentIterable
+    - userService: UserServiceFacade
+    - addToFeed(in notifiable: Notifiable): void
+    + getFeed: ContentIterable
+    + getEmail: String
+    + setEmail: String
+    + getName: String
+    + setName: String
+    + getHandle: String
+    + getID: int
 }
 
 class UserBuilder {
     + makeUser(): User
+    + setID(in id: int): void
+    + setHandle(in handle: String): void
+    + setName(in name: String): void
+    + setEmail(in email: String): void
 }
 
 class Tweet implements Post {
-    
+    - media: ArrayList<Media>
+    - userLookup: UserLookupService
+    - parseMentions(): Iterator<Followable>
 }
 
-class TweetsIterable implements NotifiablesFeed {
-
+class ContentIterable implements NotifiablesFeed {
+    - content: ArrayList<Notifiable>
 }
 
 class Topic implements Followable {
+    - handle: String
+    - contentFeed: ContentIterable
+    + getFeed: ContentIterable
+}
 
+
+class UserLookupService {
+    - users: Map<String, User>
+    - instance: UserLookupService {static}
+    + getInstance(): UserLookupService {static}
+    + findUser(in handle: String): User
+    + registerUser(in user: User): void
 }
 
 class BlockService implements BlockMediator {
-
+    - userLookup: UserLookupService
+    - performBlock(in from: User, in to: User): void
+    - performUnblock(in from: User, in to: User): void
+    - instance: BlockService {static}
+    + getInstance(): BlockService {static}
+    + block(in from: String, in to: String): void
+    + unblock(in from: String, in to: String): void
 }
 
-class FollowService implements FollowMediator, UpdateEventDispatcher {
 
+class FollowService implements FollowMediator, NotifiableDispatcher {
+    - userLookup: UserLookupService
+    - performFollow(in from: User, in to: User): void
+    - performUnfollow(in from: User, in to: User): void
+    - dispatchFollowEvent(in from: User, in to: User): void
+    - dispatchUnfollowEvent(in from: User, in to: User): void
+    - instance: FollowService {static}
+    + getInstance(): FollowService {static}
 }
 
-class PostService implements PostMediator, UpdateEventDispatcher {
-
+class PostService implements PostMediator, NotifiableDispatcher {
+    - userLookup: UserLookupService
+    - performPost(in post: Post): void
+    - dispatchPostEvent(in post: Post): void
+    - instance: PostService {static}
+    + getInstance(): PostService {static}
+    + post(in post: Post): void
 }
 
-UpdateEvent <.. UpdateEventObserver
-UpdateEvent <.. UpdateEventDispatcher
+class LikeService implements LikeMediator, NotifiableDispatcher {
+    - userLookup: UserLookupService
+    - performLike(in from: User, in to: Post): void
+    - performUnlike(in from: User, in to: Post): void
+    - dispatchLikeEvent(in from: User, in to: Post): void
+    - instance: LikeService {static}
+    + getInstance(): LikeService {static}
+}
+
+class UserServiceFacade implements BlockMediator, FollowMediator, PostMediator, LikeMediator {
+    - userLookup: UserLookupService
+    - blockService: BlockService
+    - followService: FollowService
+    - postService: PostService
+    - likeService: LikeService
+}
+
+abstract class UserActionBackend implements ServerEndpoint {
+    # serviceFacade: UserServiceFacade
+    # parseUser(in request: HTTPData): User
+    + isRequestValid(in request: HTTPData): boolean {abstract}
+    + handleRequest(in request: HTTPData): HTTPData {abstract}
+}
+
+class UserRegistrationBackend implements ServerEndpoint {
+    - userBuilder: UserBuilder
+    - registerUser(in request: HTTPData): void
+}
+
+class BlockBackend extends UserActionBackend {
+    - parseBlockToHandle(in request: HTTPData): String
+    - handleBlockRequest(in from: User, in to: String): void
+    - handleUnBlockRequest(in from: User, in to: String): void
+}
+
+class FollowBackend extends UserActionBackend {
+    - parseToHandle(in request: HTTPData): String
+    - handleFollowRequest(in from: User, in to: String): void
+    - handleUnFollowRequest(in from: User, in to: String): void
+}
+
+class PostBackend extends UserActionBackend {
+    - textFactory: TextFactory
+    - imageFactory: ImageFactory
+    - videoFactory: VideoFactory
+    - parseText(in request: HTTPData): String
+    - handleImageUploads(in request: HTTPData): Iterable<String>
+    - handleVideoUploads(in request: HTTPData): Iterable<String>
+    - generatePost(in request: HTTPData): Post
+    - handlePostRequest(in request: HTTPData): void
+}
+
+class LikeBackend extends UserActionBackend {
+    - parsePostID(in request: HTTPData): int
+    - handleLikeRequest(in from: User, in to: int): void
+    - handleUnLikeRequest(in from: User, in to: int): void
+}
+
+HTTPData <.. ServerEndpoint
+Notifiable <.. NotifiableObserver
+Notifiable <.. NotifiableDispatcher
 Notifiable o-- NotifiablesIterable
 Followable o-- Follower
 Follower o-- Followable
+Follower <.. FollowMediator
 Media o-- MediaIterable
+Media *-- Tweet
 Followable o-- Post
 Text <.. TextFactory
 Image <.. ImageFactory
 Video <.. VideoFactory
 Post <.. Poster
 Post <.. PostMediator
-TweetsIterable *-- User
+ContentIterable *-- User
+Notifiable o-- ContentIterable
 User <.. UserBuilder
+Blocker <.. BlockMediator
 Liker <.. Likeable
+Liker <.. LikeMediator
+User <.. UserLookupService
+UserLookupService o-- BlockService
+UserLookupService o-- FollowService
+UserLookupService o-- PostService
+UserLookupService o-- LikeService
+UserLookupService o-- UserServiceFacade
+UserLookupService o-- Tweet
+BlockService o-- UserServiceFacade
+FollowService o-- UserServiceFacade
+PostService o-- UserServiceFacade
+LikeService o-- UserServiceFacade
+User <.. UserActionBackend
+UserServiceFacade *-- UserActionBackend
+UserServiceFacade o-- User
+UserBuilder *-- UserRegistrationServer
+Post <.. PostBackend
+TextFactory *-- PostBackend
+ImageFactory *-- PostBackend
+VideoFactory *-- PostBackend
 
 @enduml
