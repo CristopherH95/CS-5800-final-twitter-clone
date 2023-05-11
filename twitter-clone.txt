@@ -308,7 +308,7 @@ LikeService o-- UserServiceFacade
 User <.. UserActionBackend
 UserServiceFacade *-- UserActionBackend
 UserServiceFacade o-- User
-UserBuilder *-- UserRegistrationServer
+UserBuilder *-- UserRegistrationBackend
 Post <.. PostBackend
 TextFactory *-- PostBackend
 ImageFactory *-- PostBackend
