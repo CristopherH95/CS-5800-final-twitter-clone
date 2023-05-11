@@ -7,6 +7,7 @@
     decorator => add user abilities (e.g., admin)?
     iterator => enumerate tweets
     singleton => manage access to mediator?
+    facade => server wrapping services (maybe add a request struct to go with)?
 '/
 
 struct UpdateEvent {
@@ -42,6 +43,8 @@ interface Follower {
 }
 
 interface Followable {
+    + addFollower(in follower: Follower): void
+    + removeFollower(in follower: Follower): void
     + getHandle(): String
     + getFollowers(): Iterator<Follower>
 }
@@ -70,12 +73,23 @@ interface MediaIterable {
     + iterator(): Iterator<Media>
 }
 
-interface MediaContainer extends Media, MediaIterable {
+interface MediaContainer extends MediaIterable {
     + addMedia(in media: Media): void
     + removeMedia(in mediaID: int): void 
 }
 
-interface Post extends MediaContainer, Notifiable {
+interface Liker {
+    + likePost(in postID: int): void
+    + unlikePost(in postID: int): void
+}
+
+interface Likeable {
+    + addLiker(in liker: Liker): void
+    + removeLiker(in liker: Liker): void
+    + getLikesCount(): int
+}
+
+interface Post extends MediaContainer, Notifiable, Likeable {
     + getMentioned(): Iterator<Followable>
     + addReply(in replyPost: Post): void
     + boost(): void
@@ -118,8 +132,12 @@ class VideoFactory extends MediaFactory {
 
 }
 
-class User implements Follower, Followable, Poster, Blocker, UpdateEventObserver {
+class User implements Follower, Followable, Poster, Blocker, UpdateEventObserver, Liker {
     - tweetsReader: TweetsIterable
+}
+
+class UserBuilder {
+    + makeUser(): User
 }
 
 class Tweet implements Post {
@@ -159,6 +177,7 @@ Video <.. VideoFactory
 Post <.. Poster
 Post <.. PostMediator
 TweetsIterable *-- User
-
+User <.. UserBuilder
+Liker <.. Likeable
 
 @enduml
