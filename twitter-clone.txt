@@ -95,6 +95,7 @@ interface LikeMediator {
 }
 
 interface Post extends MediaContainer, Notifiable, Likeable {
+    + getID(): int
     + getPoster(): Followable
     + getMentioned(): Iterator<Followable>
     + addReply(in replyPost: Post): void
@@ -145,7 +146,6 @@ class User implements Follower, Poster, Blocker, NotifiableObserver, Liker {
     - name: String
     - email: String
     - contentFeed: ContentIterable
-    - userService: UserServiceFacade
     - addToFeed(in notifiable: Notifiable): void
     + getFeed(): ContentIterable
     + getEmail(): String
@@ -164,8 +164,10 @@ class UserBuilder {
 }
 
 class Tweet implements Post {
+    - id: int
     - media: ArrayList<Media>
     - userLookup: UserLookupService
+    - postLookup: PostLookupService
     - parseMentions(): Iterator<Followable>
 }
 
@@ -173,10 +175,11 @@ class ContentIterable implements NotifiablesFeed {
     - content: ArrayList<Notifiable>
 }
 
-class Topic implements Followable {
+class Topic implements Followable, NotifiableObserver {
     - handle: String
     - contentFeed: ContentIterable
-    + getFeed: ContentIterable
+    - addToFeed(in notifiable: Notifiable): void
+    + getFeed(): ContentIterable
 }
 
 
@@ -186,6 +189,16 @@ class UserLookupService {
     + getInstance(): UserLookupService {static}
     + findUser(in handle: String): User
     + registerUser(in user: User): void
+    + unregisterUser(in user: User): void
+}
+
+class TopicLookupService {
+    - topics: Map<String, Topic>
+    - instance: TopicLookupService {static}
+    + getInstance(): TopicLookupService {static}
+    + findTopic(in handle: String): Topic
+    + registerTopic(in topic: Topic): void
+    + unregisterTopic(in topic: Topic): void
 }
 
 class PostLookupService {
@@ -194,81 +207,79 @@ class PostLookupService {
     + getInstance(): PostLookupService {static}
     + findPost(in id: int): Post
     + registerPost(in post: Post): void
+    + unregisterPost(in post: Post): void
 }
 
-class BlockService implements BlockMediator {
+class BlockCommunicationService implements BlockMediator {
     - userLookup: UserLookupService
     - performBlock(in from: User, in to: User): void
     - performUnblock(in from: User, in to: User): void
-    - instance: BlockService {static}
-    + getInstance(): BlockService {static}
+    - instance: BlockCommunicationService {static}
+    + getInstance(): BlockCommunicationService {static}
     + block(in from: String, in to: String): void
     + unblock(in from: String, in to: String): void
 }
 
 
-class FollowService implements FollowMediator, NotifiableDispatcher {
+class FollowCommunicationService implements FollowMediator, NotifiableDispatcher {
     - userLookup: UserLookupService
     - performFollow(in from: User, in to: User): void
     - performUnfollow(in from: User, in to: User): void
     - dispatchFollowEvent(in from: User, in to: User): void
     - dispatchUnfollowEvent(in from: User, in to: User): void
-    - instance: FollowService {static}
-    + getInstance(): FollowService {static}
+    - instance: FollowCommunicationService {static}
+    + getInstance(): FollowCommunicationService {static}
 }
 
-class PostService implements PostMediator, NotifiableDispatcher {
+class PostCommunicationService implements PostMediator, NotifiableDispatcher {
     - userLookup: UserLookupService
     - postLookup: PostLookupService
+    - topicLookup: TopicLookupService
     - performPost(in post: Post): void
+    - registerTopics(in post: Post): void
     - dispatchPostEvent(in post: Post): void
-    - instance: PostService {static}
-    + getInstance(): PostService {static}
+    - instance: PostCommunicationService {static}
+    + getInstance(): PostCommunicationService {static}
     + post(in post: Post): void
 }
 
-class LikeService implements LikeMediator, NotifiableDispatcher {
+class LikeCommunicationService implements LikeMediator, NotifiableDispatcher {
     - userLookup: UserLookupService
     - performLike(in from: User, in to: Post): void
     - performUnlike(in from: User, in to: Post): void
     - dispatchLikeEvent(in from: User, in to: Post): void
-    - instance: LikeService {static}
-    + getInstance(): LikeService {static}
-}
-
-class UserServiceFacade implements BlockMediator, FollowMediator, PostMediator, LikeMediator {
-    - userLookup: UserLookupService
-    - blockService: BlockService
-    - followService: FollowService
-    - postService: PostService
-    - likeService: LikeService
+    - instance: LikeCommunicationService {static}
+    + getInstance(): LikeCommunicationService {static}
 }
 
 abstract class UserActionBackend implements ServerEndpoint {
-    # serviceFacade: UserServiceFacade
+    # userLookup: UserLookupService
     # parseUser(in request: HTTPData): User
     + isRequestValid(in request: HTTPData): boolean {abstract}
     + handleRequest(in request: HTTPData): HTTPData {abstract}
 }
 
-class UserRegistrationBackend implements ServerEndpoint {
+class UserRegistrationBackend extends UserActionBackend {
     - userBuilder: UserBuilder
     - registerUser(in request: HTTPData): void
 }
 
 class BlockBackend extends UserActionBackend {
+    - blockService: BlockCommunicationService
     - parseBlockToHandle(in request: HTTPData): String
     - handleBlockRequest(in from: User, in to: String): void
     - handleUnBlockRequest(in from: User, in to: String): void
 }
 
 class FollowBackend extends UserActionBackend {
+    - followService: FollowCommunicationService
     - parseToHandle(in request: HTTPData): String
     - handleFollowRequest(in from: User, in to: String): void
     - handleUnFollowRequest(in from: User, in to: String): void
 }
 
 class PostBackend extends UserActionBackend {
+    - postService: PostCommunicationService
     - textFactory: TextFactory
     - imageFactory: ImageFactory
     - videoFactory: VideoFactory
@@ -280,6 +291,8 @@ class PostBackend extends UserActionBackend {
 }
 
 class LikeBackend extends UserActionBackend {
+    - likeService: LikeCommunicationService
+    - postLookup: PostLookupService
     - parsePostID(in request: HTTPData): int
     - handleLikeRequest(in from: User, in to: int): void
     - handleUnLikeRequest(in from: User, in to: int): void
@@ -288,43 +301,43 @@ class LikeBackend extends UserActionBackend {
 HTTPData <.. ServerEndpoint
 Notifiable <.. NotifiableObserver
 Notifiable <.. NotifiableDispatcher
-Notifiable o-- NotifiablesIterable
-Followable o-- Follower
-Follower o-- Followable
+Notifiable "0..*" o-- "1" NotifiablesIterable
+Notifiable "0..*" o-- "1" ContentIterable
+Followable "0..*" o-- "1" Follower
+Followable "0..*" o-- "1" Post
+Follower "0..*" o-- "1" Followable
 Follower <.. FollowMediator
-Media o-- MediaIterable
-Media *-- Tweet
-Followable o-- Post
+Media "0..*" o-- "1" MediaIterable
+Media "1..*" *-- "1" Tweet
 Text <.. TextFactory
 Image <.. ImageFactory
 Video <.. VideoFactory
 Post <.. Poster
 Post <.. PostMediator
-ContentIterable *-- User
-Notifiable o-- ContentIterable
+Post <.. PostBackend
+ContentIterable "0..*" *-- "1" User
 User <.. UserBuilder
+User <.. UserLookupService
+User <.. UserActionBackend
 Blocker <.. BlockMediator
 Liker <.. Likeable
 Liker <.. LikeMediator
-User <.. UserLookupService
-UserLookupService o-- BlockService
-UserLookupService o-- FollowService
-UserLookupService o-- PostService
-UserLookupService o-- LikeService
-UserLookupService o-- UserServiceFacade
-UserLookupService o-- Tweet
-PostLookupService o-- PostService
-BlockService o-- UserServiceFacade
-FollowService o-- UserServiceFacade
-PostService o-- UserServiceFacade
-LikeService o-- UserServiceFacade
-User <.. UserActionBackend
-UserServiceFacade *-- UserActionBackend
-UserServiceFacade o-- User
-UserBuilder *-- UserRegistrationBackend
-Post <.. PostBackend
-TextFactory *-- PostBackend
-ImageFactory *-- PostBackend
-VideoFactory *-- PostBackend
+UserLookupService "1" o-- "1" BlockCommunicationService
+UserLookupService "1" o-- "1" FollowCommunicationService
+UserLookupService "1" o-- "1" PostCommunicationService
+UserLookupService "1" o-- "1" LikeCommunicationService
+UserLookupService "1" o-- "1" Tweet
+UserLookupService "1" *-- "1" UserActionBackend
+PostLookupService "1" o-- "1" PostCommunicationService
+PostLookupService "1" o-- "1" Tweet
+BlockCommunicationService "1" *-- "1" BlockBackend
+FollowCommunicationService "1" *-- "1" FollowBackend
+PostCommunicationService "1" *-- "1" PostBackend
+LikeCommunicationService "1" *-- "1" LikeBackend
+UserBuilder "1" *-- "1" UserRegistrationBackend
+TextFactory "1" *-- "1" PostBackend
+ImageFactory "1" *-- "1" PostBackend
+VideoFactory "1" *-- "1" PostBackend
+Topic <.. TopicLookupService
 
 @enduml
