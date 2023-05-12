@@ -14,6 +14,10 @@ interface NotifiableObserver {
     + handleEvent(in event: Notifiable): void
 }
 
+interface Handled {
+    + getHandle(): String
+}
+
 interface NotifiableDispatcher {
     + notifyObservers(in event: Notifiable): void
 }
@@ -37,10 +41,9 @@ interface Follower {
     + getFollowing(): Iterator<Followable>
 }
 
-interface Followable {
+interface Followable extends Handled {
     + addFollower(in follower: Follower): void
     + removeFollower(in follower: Follower): void
-    + getHandle(): String
     + getFollowers(): Iterator<Follower>
 }
 
@@ -95,7 +98,8 @@ interface Post extends MediaContainer, Notifiable, Likeable {
     + getPoster(): Followable
     + getMentioned(): Iterator<Followable>
     + addReply(in replyPost: Post): void
-    + boost(): void
+    + getReplies(): Iterator<Post>
+    + repost(): void
     + delete(): void
 }
 
@@ -116,13 +120,13 @@ class Text implements Media {
 class Image implements Media {
     - String fileServerURL
     + getFileURL(): String
-    + setFileURL(): String
+    + setFileURL(in fileURL: String): void
 }
 
 class Video implements Media {
     - String fileServerURL
     + getFileURL(): String
-    + setFileURL(): String
+    + setFileURL(in fileURL: String): void
 }
 
 abstract class MediaFactory {
@@ -143,13 +147,12 @@ class User implements Follower, Poster, Blocker, NotifiableObserver, Liker {
     - contentFeed: ContentIterable
     - userService: UserServiceFacade
     - addToFeed(in notifiable: Notifiable): void
-    + getFeed: ContentIterable
-    + getEmail: String
-    + setEmail: String
-    + getName: String
-    + setName: String
-    + getHandle: String
-    + getID: int
+    + getFeed(): ContentIterable
+    + getEmail(): String
+    + setEmail(in email: String): void
+    + getName(): String
+    + setName(in name: String): void
+    + getID(): int
 }
 
 class UserBuilder {
@@ -185,6 +188,14 @@ class UserLookupService {
     + registerUser(in user: User): void
 }
 
+class PostLookupService {
+    - posts: Map<int, Post>
+    - instance: PostLookupService {static}
+    + getInstance(): PostLookupService {static}
+    + findPost(in id: int): Post
+    + registerPost(in post: Post): void
+}
+
 class BlockService implements BlockMediator {
     - userLookup: UserLookupService
     - performBlock(in from: User, in to: User): void
@@ -208,6 +219,7 @@ class FollowService implements FollowMediator, NotifiableDispatcher {
 
 class PostService implements PostMediator, NotifiableDispatcher {
     - userLookup: UserLookupService
+    - postLookup: PostLookupService
     - performPost(in post: Post): void
     - dispatchPostEvent(in post: Post): void
     - instance: PostService {static}
@@ -301,6 +313,7 @@ UserLookupService o-- PostService
 UserLookupService o-- LikeService
 UserLookupService o-- UserServiceFacade
 UserLookupService o-- Tweet
+PostLookupService o-- PostService
 BlockService o-- UserServiceFacade
 FollowService o-- UserServiceFacade
 PostService o-- UserServiceFacade
