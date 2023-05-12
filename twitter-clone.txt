@@ -298,46 +298,53 @@ class LikeBackend extends UserActionBackend {
     - handleUnLikeRequest(in from: User, in to: int): void
 }
 
+class UserFeedBackend extends UserActionBackend {
+    - getPagedUserContent(in user: User, in page: int): ContentIterable
+}
+
 HTTPData <.. ServerEndpoint
 Notifiable <.. NotifiableObserver
 Notifiable <.. NotifiableDispatcher
-Notifiable "0..*" o-- "1" NotifiablesIterable
-Notifiable "0..*" o-- "1" ContentIterable
-Followable "0..*" o-- "1" Follower
-Followable "0..*" o-- "1" Post
-Follower "0..*" o-- "1" Followable
+NotifiablesIterable "1" o-- "0..*" Notifiable
+ContentIterable "1" o-- "0..*" Notifiable
+Follower "1" o-- "0..*" Followable
+Post "1" o-- "0..*" Followable
+Followable "1" o-- "0..*" Follower
 Follower <.. FollowMediator
-Media "0..*" o-- "1" MediaIterable
-Media "1..*" *-- "1" Tweet
+MediaIterable "1" o-- "0..*" Media
+Tweet "1" *-- "1..*" Media
 Text <.. TextFactory
 Image <.. ImageFactory
 Video <.. VideoFactory
 Post <.. Poster
 Post <.. PostMediator
 Post <.. PostBackend
-ContentIterable "0..*" *-- "1" User
+PostLookupService "1" o.. "0..*" Post
+User "1" *-- "0..*" ContentIterable
 User <.. UserBuilder
-User <.. UserLookupService
+UserLookupService "1"  o.. "0..*" User
 User <.. UserActionBackend
 Blocker <.. BlockMediator
 Liker <.. Likeable
 Liker <.. LikeMediator
-UserLookupService "1" o-- "1" BlockCommunicationService
-UserLookupService "1" o-- "1" FollowCommunicationService
-UserLookupService "1" o-- "1" PostCommunicationService
-UserLookupService "1" o-- "1" LikeCommunicationService
-UserLookupService "1" o-- "1" Tweet
-UserLookupService "1" *-- "1" UserActionBackend
-PostLookupService "1" o-- "1" PostCommunicationService
-PostLookupService "1" o-- "1" Tweet
-BlockCommunicationService "1" *-- "1" BlockBackend
-FollowCommunicationService "1" *-- "1" FollowBackend
-PostCommunicationService "1" *-- "1" PostBackend
-LikeCommunicationService "1" *-- "1" LikeBackend
-UserBuilder "1" *-- "1" UserRegistrationBackend
-TextFactory "1" *-- "1" PostBackend
-ImageFactory "1" *-- "1" PostBackend
-VideoFactory "1" *-- "1" PostBackend
+BlockCommunicationService "1" o-- "1" UserLookupService
+FollowCommunicationService "1" o-- "1" UserLookupService
+PostCommunicationService "1" o-- "1" UserLookupService
+LikeCommunicationService "1" o-- "1" UserLookupService
+PostCommunicationService "1" o-- "1" TopicLookupService
+Tweet "1" o-- "1" UserLookupService
+UserActionBackend "1" *-- "1" UserLookupService
+PostCommunicationService "1" o-- "1" PostLookupService
+Tweet "1" o-- "1" PostLookupService
+BlockBackend "1" *-- "1" BlockCommunicationService
+FollowBackend "1" *-- "1" FollowCommunicationService
+PostBackend "1" *-- "1" PostCommunicationService
+LikeBackend "1" *-- "1" LikeCommunicationService
+UserRegistrationBackend "1" *-- "1" UserBuilder
+PostBackend "1" *-- "1" TextFactory
+PostBackend "1" *-- "1" ImageFactory
+PostBackend "1" *-- "1" VideoFactory
 Topic <.. TopicLookupService
+ContentIterable <.. UserFeedBackend
 
 @enduml
