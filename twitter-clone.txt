@@ -165,14 +165,14 @@ class UserBuilder {
 
 class Tweet implements Post {
     - id: int
-    - media: ArrayList<Media>
+    - media: Iterable<Media>
     - userLookup: UserLookupService
     - postLookup: PostLookupService
     - parseMentions(): Iterator<Followable>
 }
 
 class ContentIterable implements NotifiablesFeed {
-    - content: ArrayList<Notifiable>
+    - content: Iterable<Notifiable>
 }
 
 class Topic implements Followable, NotifiableObserver {
